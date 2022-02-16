@@ -109,7 +109,7 @@ out_main <- "../Demo_data_bimico/results/"
 toy_set <- bimico_454(readfiles = rawfqs,
                       taxfile = txset,
                       pheno = phedat,
-                      filt_out = filtered_fqs,
+                      filt_out = main_out,
                       trim_read_length = 0, 
                       mtthread = T)
 ```
