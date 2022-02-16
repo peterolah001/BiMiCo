@@ -1,0 +1,145 @@
+---
+title: "Quickstart guide to BiMiCo microbial community analysis toolbox"
+author: " "
+output: html_document
+---
+
+<br>
+
+## Illumina PE Workflow
+
+<br>
+
+<br>
+
+The BiMiCo (Biomap Microbiome Core-tools) package offers single-step preprocessing of 16S microbial marker gene sequencing raw data files for 454 and Illumina platforms.
+The current tutorial and example data is aimed at the simple preprocessing of 454-generated fastq data. For more options and details, please see the "BiMiCo_tutorial_LONG" document.
+
+<br>
+
+
+### 0. Install dependencies
+
+#### Install CRAN dependencies
+
+```{r a0, eval=F}
+install.packages("BiocManager") 
+install.packages("ggplot2")
+```
+
+#### Install Bioconductor dependencies
+
+```{r a1, eval=F}
+BiocManager::install("Biobase") 
+BiocManager::install("Biostrings") 
+BiocManager::install("phyloseq") 
+BiocManager::install("dada2")
+```
+
+#### Optional packages (required for "Long" tutorial/workflow)
+
+```{r a2, eval=F}
+install.packages("fastqcr") 
+install.packages("phangorn") 
+BiocManager::install("decontam")
+```
+
+<br>
+
+
+### 1. Load required packages
+
+```{r a3, eval=F}
+library(BiMiCo) 
+library(fastqcr)
+library(ggplot2) 
+```
+
+<br>
+
+
+### 2.A Specify INPUTS:
+
+#### fastq files (directory containing raw fastq files intended for analysis exclusively, no other files):
+
+```{r a4, eval=F}
+rawfqsF <- "../Demo_data_bimico/FWD_Illumina/"
+rawfqsR <- "../Demo_data_bimico/REV_Illumina/"
+```
+
+#### File format: please specify *pattern=* if other than "fastq.gz"
+```{r a4b, eval=F}
+fastqFs <- sort(list.files(rawfqsF), pattern="fastq.gz")
+fastqRs <- sort(list.files(rawfqsR), pattern="fastq.gz"))
+```
+
+##### Check if pairs match
+```{r a4c, eval=F}
+if(length(fastqFs) != length(fastqRs)) stop("Forward and reverse files do not match.")
+```
+
+#### sample phenodata (sample names in rows, sample variables in columns):
+
+```{r a5, eval=F}
+phedat <- read.csv("../Demo_data_bimico/phenodata_demo.csv", row.names=1)
+```
+
+#### Please explicitly specify **PRIMER TYPE** (amplified region) of your study as a character string column of phenodata (e.g. "V3-V4" region for the demo data):
+
+```{r a6, eval=F}
+phedat$primer_type <- "V3-V4"
+```
+
+#### taxonomy database to use with DADA2 (default is Greengenes v.13.8):
+
+```{r a7, eval=F}
+txset <- "../Demo_data_bimico/gg_13_8_train_set_97.fa.gz"
+```
+
+### 2.B Specify OUTPUT folders:
+
+#### directory to write quality-filtered fastq files to:
+
+```{r a8, eval=F}
+filtered_fqs_FWD <- "../Demo_data_bimico/filt_FWD_Illumina"
+filtered_fqs_REV <- "../Demo_data_bimico/filt_REV_Illumina"
+```
+
+#### directory to write various outputs(ASV table, figures & graphs) to:
+
+```{r a9, eval=F}
+out_main <- "../Demo_data_bimico/results/"
+```
+
+<br>
+
+
+### 3. Run single-command preprocessing for 454 reads. 
+##### *Tip #1: trimming the length of 454 sequencing reads is highly recommended due to the drop-off in quality; please set trim_read_length accordingly, see "Long" tutorial for more details on QC/trimming*
+##### *Tip #2: Multithreading is enabled with the "mtthread=T" argument- not recommended when running from Rstudio.*
+
+```{r a10, eval=F}
+toy_set <- bimico_454(readfiles=rawfqs, 
+                      taxfile = txset,
+                      pheno = phedat,
+                      outdir=filtered_fqs,
+                      trim_read_length = 0,
+                      mtthread = F)
+```
+
+##### Generate a summary report based on the desired variable column of phenodata (case/control, sample source, sequencing batch...)
+
+<br>
+
+
+<br>
+
+
+#### UNDER DEVELOPMENT: specify phyloseq object, variable of interest, output file basename- PDF of ordination and top 10 ASVs, extended in the future
+
+```{r a11, eval=F}
+bimico_summary(toy_set, "clinical_group", "ex1")
+```
+
+
+

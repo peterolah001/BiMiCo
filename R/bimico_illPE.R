@@ -13,14 +13,14 @@
 #' bimico_454()
 
 
-bimico_454 <- function(readfiles, taxfile, pheno, filt_out, outdir,  trim_read_length=0, mtthread=F){
+bimico_illPE <- function(fwd_reads, rev_reads, taxfile, pheno, filt_out, outdir,  trim_read_length=0, mtthread=F){
 
-prep_454(readfiles=readfiles,
-         outdir=filt_out,
+prep_454(rawfqs,
+         outdir,
          mtthread = mtthread,
          trim_read_length = trim_read_length)
 
-asvtab <- asvtab_454(filtered_fqs, mtthread=mtthread)
+asvtab <- asvtab_454(filt_out, mtthread=mtthread)
 
 asvtab <- asvtab[ nchar(rownames(asvtab))>=50, ]
 
@@ -28,7 +28,7 @@ taxtab <- asgntax(asvtab, taxfile, revcomp = T, mtthread = mtthread)
 
 phedat <- pheno
 
- rownames(phedat) <- gsub(".fastq", "", rownames(phedat))
+ rownames(phedat) <- gsub(".fastq.gz", "", rownames(phedat))
  colnames(asvtab) <- gsub(".filt", "", colnames(asvtab))
 asvtab <- asvtab[ , order(colnames(asvtab))]
 phedat <- phedat[ order(rownames(phedat)), ]
