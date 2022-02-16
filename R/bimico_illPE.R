@@ -1,6 +1,7 @@
 #' single-step preprocessing of 454 reads in BiMiCo pipeline
 #'
 #' Read processing function. Returns quality-filtered reads in output folder and Phyloseq object of ASVs, taxonomy and phenodata.
+#' @import phyloseq
 #' @param readfiles (Required) Path to single-end 454 demultiplexed fastq files, extension currently has to be ".fastq"
 #' @param taxfile (Required) Path to taxonomy database
 #' @param pheno (Required) Phenotye table

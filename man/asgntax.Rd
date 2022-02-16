@@ -4,12 +4,14 @@
 \alias{asgntax}
 \title{Taxonomy assignment based on external reference database in BiMiCo pipeline}
 \usage{
-asgntax(asvtab, taxdat, revcomp, mtthread)
+asgntax(asvtab, taxdat, revcomp = T, mtthread)
 }
 \arguments{
 \item{asvtab}{(Required) ASV table object (of class matrix) created by the 'std_(454/Illum)_ASVtab' function (ASVs in rows, samples in columns)}
 
 \item{taxdat}{(Required) Path to taxonomy database file compatible with DADA2 'assignTaxonomy' function}
+
+\item{revcomp}{(Optional) Boolean, whether to check reverse complement of reference sequence. Default=T}
 
 \item{mtthread}{(Required) Boolean, enables multithreading (not recommended in Rstudio)}
 }

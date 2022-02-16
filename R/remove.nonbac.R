@@ -3,6 +3,7 @@
 #'
 #' Given an input phyloseq object with valid tax_table, returns taxonomy-filtered phyloseq object with mitochondrial, chloroplast and non-bacterial taxa removed.
 #' Non-bacterial sequences (e.g. mitochondria, chloroplast) need to be removed from OTU/ASV tables prior to statistical analyses. rm_nonbac removes all rows of otu_table and tax_table in a phyloseq object based on taxonomic labelling 'Mitochondria', 'Chloroplast' or where Kingdom is other than 'Bacteria'. NAs in taxonomy table are converted to 'unidentified'.  
+#' @import phyloseq
 #' @param x Phyloseq object with non-empty otu_table and tax_table slots; otu_table may contain either OTUs or ASVs. 
 #' @keywords data processing phyloseq
 #' @export

@@ -6,13 +6,14 @@
 #' @param asvtab (Required) ASV table object (of class matrix) created by the 'std_(454/Illum)_ASVtab' function (ASVs in rows, samples in columns)
 #' @param taxdat (Required) Path to taxonomy database file compatible with DADA2 'assignTaxonomy' function
 #' @param mtthread (Required) Boolean, enables multithreading (not recommended in Rstudio)
+#' @param revcomp (Optional) Boolean, whether to check reverse complement of reference sequence. Default=T
 #' @keywords read processing dada2
 #' @export
 #' @examples
 #' asgntax()
 
 
-asgntax <- function(asvtab, taxdat, revcomp, mtthread){
+asgntax <- function(asvtab, taxdat, revcomp=T, mtthread){
 
   asstax <- dada2::assignTaxonomy(t(asvtab),
                              taxdat,
