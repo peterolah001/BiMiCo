@@ -13,7 +13,7 @@ output: html_document
 <br>
 
 The BiMiCo (Biomap Microbiome Core-tools) package offers single-step preprocessing of 16S microbial marker gene sequencing raw data files for 454 and Illumina platforms.
-The current tutorial and example data is aimed at the simple preprocessing of 454-generated fastq data. For more options and details, please see the "BiMiCo_tutorial_LONG" document.
+The current tutorial and example data is aimed at the simple preprocessing of Illumina single-end fastq data. For more options and details, please see the "BiMiCo_tutorial_LONG" document.
 
 <br>
 
@@ -36,46 +36,66 @@ BiocManager::install("phyloseq")
 BiocManager::install("dada2")
 ```
 
-#### Optional packages (required for "Long" tutorial/workflow)
+#### Optional packages (for downstream/supplementary analyses)
 
 ```{r a2, eval=F}
 install.packages("fastqcr") 
 install.packages("phangorn") 
 BiocManager::install("decontam")
+BiocManager::install("msa")
 ```
 
 <br>
+<br>
 
+<br>
 
 ### 1. Load required packages
 
 ```{r a3, eval=F}
 library(BiMiCo) 
-library(fastqcr)
+library(phyloseq)
 library(ggplot2) 
 ```
 
 <br>
+<br>
 
+<br>
 
 ### 2.A Specify INPUTS:
 
-#### fastq files (directory containing raw fastq files intended for analysis exclusively, no other files):
+#### fastq files (add trailing separator (/ or \) to path:
 
 ```{r a4, eval=F}
-rawfqs <- "../Demo_data_bimico/raw_fqs"
+rawfqs <- "/media/peter1/Data03/WORK_2020/BIOMAP/AD_16S_EXAMPLE_MEX_study/Medium_example/fastqs/"
 ```
 
-#### sample phenodata (sample names in rows, sample variables in columns):
+#### File format: please specify *pattern=* if other than "fastq"
+```{r a4b, eval=F}
+fastqs <- sort(list.files(rawfqs, pattern="fastq"))
+```
+
+##### Check if files can be located correctly
+```{r a4c, eval=F}
+file.exists(paste0(rawfqs,fastqs))
+```
+
+#### After checks, specify input files
+```{r a5c, eval=F}
+infqs <- paste0(rawfqs,fastqs)
+```
+#### sample phenodata (sample names in rows, sample variables in columns, comma separated table) **ROWNAMES** should contain the file basename without read 1/2 or file extension (see example):
 
 ```{r a5, eval=F}
-phedat <- read.csv("../Demo_data_bimico/phenodata_demo.csv", row.names=1)
+phedat <- read.csv("../AD_16S_EXAMPLE_MEX_study/Medium_example/pheno_medium.csv", row.names=1)
+phedat <- phedat[ order(rownames(phedat)), ]
 ```
 
 #### Please explicitly specify **PRIMER TYPE** (amplified region) of your study as a character string column of phenodata (e.g. "V3-V4" region for the demo data):
 
 ```{r a6, eval=F}
-phedat$primer_type <- "V3-V4"
+phedat$primer_type <- "V1-3"
 ```
 
 #### taxonomy database to use with DADA2 (default is Greengenes v.13.8):
@@ -84,32 +104,37 @@ phedat$primer_type <- "V3-V4"
 txset <- "../Demo_data_bimico/gg_13_8_train_set_97.fa.gz"
 ```
 
+<br>
+
+
+<br>
+
 ### 2.B Specify OUTPUT folders:
 
 #### directory to write quality-filtered fastq files to:
 
 ```{r a8, eval=F}
-filtered_fqs <- "../Demo_data_bimico/filt_fqs"
+filt_fqs_dir <- "/media/peter1/Data03/WORK_2020/BIOMAP/Demo_data_SE/filt_fqs"
 ```
 
 #### directory to write various outputs(ASV table, figures & graphs) to:
 
 ```{r a9, eval=F}
-out_main <- "../Demo_data_bimico/results/"
+results_dir <- "/media/peter1/Data03/WORK_2020/BIOMAP/Demo_data_SE/results/"
 ```
 
 <br>
 
 
-### 3. Run single-command preprocessing for 454 reads. 
-##### *Tip #1: trimming the length of 454 sequencing reads is highly recommended due to the drop-off in quality; please set trim_read_length accordingly, see "Long" tutorial for more details on QC/trimming*
-##### *Tip #2: Multithreading is enabled with the "mtthread=T" argument- not recommended when running from Rstudio.*
+### 3. Run single-command preprocessing for Illumina paired-end reads. 
+##### *Tip: Multithreading is enabled with the "mtthread=T" argument- not recommended when running from Rstudio.*
 
 ```{r a10, eval=F}
-toy_set <- bimico_454(readfiles = rawfqs,
+toy_set2 <- bimico_454(readfiles = infqs[ 1:20 ],
                       taxfile = txset,
-                      pheno = phedat,
-                      filt_out = filtered_fqs,
+                      pheno = phedat[ 1:20 ],
+                      filt_out = "./",
+                      outdir = "./",
                       trim_read_length = 0, 
                       mtthread = T)
 ```

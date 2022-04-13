@@ -1,0 +1,208 @@
+---
+title: "Quickstart guide to BiMiCo microbial community analysis toolbox"
+author: ' '
+output:
+  html_document: default
+  pdf_document: default
+---
+
+<br>
+
+## Illumina PE Workflow
+
+<br>
+
+<br>
+
+The BiMiCo (Biomap Microbiome Core-tools) package offers single-step preprocessing of 16S microbial marker gene sequencing raw data files for 454 and Illumina platforms.
+The current tutorial and example data is aimed at the simple preprocessing of 16S fastq data. For more options and details, please see the "BiMiCo_tutorial_LONG" document.
+
+<br>
+
+
+### 0. Install dependencies
+
+#### Install CRAN dependencies
+
+```{r a0, eval=F}
+install.packages("BiocManager") 
+install.packages("ggplot2")
+```
+
+#### Install Bioconductor dependencies
+
+```{r a1, eval=F}
+BiocManager::install("Biobase") 
+BiocManager::install("Biostrings") 
+BiocManager::install("phyloseq") 
+BiocManager::install("dada2")
+```
+
+#### Optional packages (for downstream/supplementary analyses)
+
+```{r a2, eval=F}
+install.packages("fastqcr") 
+install.packages("phangorn") 
+BiocManager::install("decontam")
+BiocManager::install("msa")
+```
+
+<br>
+<br>
+
+<br>
+
+### 1. Load required packages
+
+```{r a3, eval=F}
+library(BiMiCo) 
+library(phyloseq)
+library(ggplot2) 
+```
+
+<br>
+<br>
+
+<br>
+
+### 2.A Specify INPUTS:
+
+#### fastq files (directory containing raw fastq files intended for analysis exclusively, no other files):
+
+```{r a4, eval=F}
+rawfqsF <- "/media/peter1/Data03/WORK_2020/BIOMAP/AD_16S_EXAMPLE_DATA/Medium_example/FWD/"
+rawfqsR <- "/media/peter1/Data03/WORK_2020/BIOMAP/AD_16S_EXAMPLE_DATA/Medium_example/REV/"
+```
+
+#### File format: please specify *pattern=* if other than "fastq"
+```{r a4b, eval=F}
+fastqFs <- sort(list.files(rawfqsF, pattern="fastq"))
+fastqRs <- sort(list.files(rawfqsR, pattern="fastq"))
+```
+
+##### Check if files can be located correctly
+```{r a4c, eval=F}
+file.exists(paste0(rawfqsF,fastqFs))
+file.exists(paste0(rawfqsR,fastqRs))
+```
+##### Check if pairs match
+```{r a4d, eval=F}
+if(length(fastqFs) != length(fastqRs)) stop("Forward and reverse files do not match.")
+```
+
+#### After checks, specify input files
+```{r a5c, eval=F}
+inF <- paste0(rawfqsF,fastqFs)
+inR <- paste0(rawfqsR,fastqRs)
+```
+#### sample phenodata (sample names in rows, sample variables in columns, comma separated table) **ROWNAMES** should contain the file basename without read 1/2 or file extension (see example):
+
+```{r a5, eval=F}
+phedat <- read.csv("/media/peter1/Data03/WORK_2020/BIOMAP/AD_16S_EXAMPLE_DATA/Medium_example/pheno1.csv", row.names=1)
+```
+
+#### Please explicitly specify **PRIMER TYPE** (amplified region) of your study as a character string column of phenodata (e.g. "V3-V4" region for the demo data):
+
+```{r a6, eval=F}
+phedat$primer_type <- "V1-3"
+```
+
+#### taxonomy database to use with DADA2 (default is Greengenes v.13.8):
+
+```{r a7, eval=F}
+txset <- "../Demo_data_bimico/gg_13_8_train_set_97.fa.gz"
+```
+
+<br>
+
+
+<br>
+
+### 2.B Specify OUTPUT folders:
+
+#### directory to write quality-filtered fastq files to (FWD and REV subdirectories will be created):
+
+```{r a8, eval=F}
+filt_fqs_dir <- "/media/peter1/Data03/WORK_2020/BIOMAP/AD_16S_EXAMPLE_DATA/Medium_example/"
+```
+
+#### directory to write various outputs(ASV table, figures & graphs) to:
+
+```{r a9, eval=F}
+results_dir <- "/media/peter1/Data03/WORK_2020/BIOMAP/AD_16S_EXAMPLE_DATA/Medium_example/results/"
+```
+
+<br>
+
+<br>
+
+### 3. Run single-command preprocessing for Illumina paired-end reads. 
+##### *Tip #2: Multithreading is enabled with the "mtthread=T" argument- not recommended when running from Rstudio.*
+
+```{r a10, eval=F}
+toy_set <- bimico_illPE(fwd_reads=inF,
+                        rev_reads=inR,
+                        rawext = "_1.fastq",
+                      taxfile = txset,
+                      pheno = phedat,
+                      filt_out = filt_fqs_dir,
+                      outdir=results_dir,
+                      mergepairs = T,
+                      trim_read_length = 0,
+                      mtthread = T)
+```
+
+##### ASV table and taxonomy are saved to disk in the specified directory. In case the Phyloseq object is not created successfully, these can be used to review sample names and import into Phyloseq manually.
+
+<br>
+
+
+<br>
+
+#### 3b Complete the phyloseq object with a phylogenetic tree of ASVs
+```{r a11, eval=F}
+seqs <- rownames(toy_set@tax_table@.Data)
+names(seqs) <- seqs
+malign <- msa(seqs, method="ClustalW", type="dna", order="input")
+```
+
+<br>
+
+
+<br>
+
+
+### 4. Explore the data
+
+#### A) Alpha diversities 
+```{r b1, eval=F}
+plot_richness(toy_set, x="Samgroup")
+```
+
+#### B) PCoA
+```{r b2, eval=F}
+pcoa_ph(toy_set, "Samgroup")
+```
+
+#### C) Aggregate taxa and summarize stats
+```{r b2, eval=F}
+t1 <- as.data.frame(tax_table(toy_set))
+t2 <- as.data.frame(otu_table(toy_set))
+t1 <- cbind(t1, t2)
+t1$multilvl <- paste(t1$Family,
+                     t1$Genus, t1$Species, sep = "_")
+asv_seqs <- rownames(t1)
+t1b <- aggregate(t2, by=list(t1$multilvl), FUN = sum)
+rownames(t1b) <- t1b$Group.1 ; t1b$Group.1 <- NULL
+
+# Convert to relative abundance
+t1c <- sapply(t1b, function(x) x / sum(x))
+colSums(t1c)
+rownames(t1c) <- rownames(t1b)
+
+# Most abundant taxa
+summary(rowSums(t1c))
+
+```
+
+
