@@ -1,0 +1,387 @@
+---
+title: "Large-cohort example, BiMiCo microbial community analysis toolbox"
+author: " "
+output: html_document
+---
+
+<br>
+
+# **USA 2012 HV cohort Bimico demo analysis**
+
+<br>
+
+<br>
+
+The BiMiCo (Biomap Microbiome Core-tools) package offers single-step preprocessing of 16S microbial marker gene sequencing raw data files for 454 and Illumina platforms.
+The current tutorial and example data is aimed at the simple preprocessing of 454 reads.
+
+<br>
+
+```{r setup, echo=FALSE}
+evpar <- FALSE
+```
+
+## ***READ PROCESSING***
+
+### 1. Load required packages
+
+```{r a3, eval=evpar}
+library(BiMiCo)
+
+## simple visualizations
+library(Biobase)
+library(ggplot2) 
+
+```
+
+<br>
+<br>
+
+<br>
+
+#### Folder containing fastq files (add trailing separator (/ or \) to path:
+```{r a4, eval=evpar}
+rawfqs <- "../BiMiCo_demofiles_etc/SRA_demo_USA_HV_2012_V4/SRA_demo_USA_V4_HV/"
+```
+#### sample phenodata (sample names in rows, sample variables in columns, comma separated table) **ROWNAMES** should contain the file basename without read 1/2 or file extension (see example):
+```{r a5, eval=evpar}
+phedat <- read.csv("/media/peter1/Data03/WORK_2020/BIOMAP/BiMiCo_demofiles_etc/SRA_demo_USA_HV_2012_V4/SraRunTable.txt")
+# Match actual filenames with phenodata rownames
+rownames(phedat) <- phedat$Run
+phedat <- phedat[ order(rownames(phedat)), ]
+```
+#### directory to write quality-filtered fastq files to:
+```{r a8, eval=evpar}
+filt_fqs_dir <- "../BiMiCo_demofiles_etc/SRA_demo_USA_HV_2012_V4/dada_filtfqs"
+```
+#### directory to write various outputs (ASV table, figures & graphs) to:
+```{r a9, eval=evpar}
+results_dir <- "../BiMiCo_demofiles_etc/SRA_demo_USA_HV_2012_V4/results"
+```
+
+
+#### File format: please specify *pattern=* if other than ".fastq"
+```{r a4b, eval=evpar}
+fastqs <- sort(list.files(rawfqs, pattern=".fastq"))
+fastqs <- fastqs[1:200]
+```
+##### Check if files can be located correctly
+```{r a4c, eval=evpar}
+file.exists(paste0(rawfqs,fastqs))
+```
+#### After checks, specify input files
+```{r a5c, eval=evpar}
+infqs <- paste0(rawfqs,fastqs)
+```
+#### Please explicitly specify **PRIMER TYPE** (amplified region) of your study as a character string column of phenodata (e.g. "V3-V4" region for the demo data):
+```{r a6, eval=evpar}
+phedat$primer_type <- "V4"
+```
+
+#### taxonomy database to use with DADA2 (default is Greengenes v.13.8):
+
+```{r a7, eval=evpar}
+txset <- "/media/peter1/Data03/WORK_2020/BIOMAP/BiMiCo_demofiles_etc/gg_13_8_train_set_97.fa.gz"
+# txset <- "/media/peter1/Data03/WORK_2020/BIOMAP/BiMiCo_demofiles_etc/GTDB_bac120_arc122_ssu_r202_fullTaxo.fa.gz"
+
+```
+
+##### Preprocess fastqs per batch for dada2
+
+```{r a10a, eval=evpar}
+
+# Filter all in one go
+prep_illSE(infqs, 
+           outdir = filt_fqs_dir,
+           file_suffix = "_filt.fastq",
+           mtthread = T)
+
+# DADA2, error modeling per batch
+asvtab_pl01 <- asvtab_illSE(readfiles = filt_fqs_dir,
+                          n=1e6,
+                          mtthread = T)
+
+## Match pheno table rows
+dim(asvtab_pl01)
+colnames(asvtab_pl01) <- gsub(".fastq", "", colnames(asvtab_pl01))
+summary(rownames(phedat) %in% colnames(asvtab_pl01))
+phedat <- phedat[ rownames(phedat) %in% colnames(asvtab_pl01), ]
+summary(rownames(phedat)==colnames(asvtab_pl01))
+
+## Create phenotable columns for num. input reads, ASV count
+# Indiv. ASVs per sample
+mpheset$ASVcount <- colSums(exprs(mpheset)!=0)
+
+boxplot(mpheset$ASVcount~mpheset$NTC_type, col="lightblue")
+
+plot(mpheset$Passed_Filter, mpheset$ASVcount)
+
+#save
+# write.csv(asvtab_pl01, file = "asvtab_USA.csv")
+# write.csv(phedat, file = "phedat_USA.csv")
+```
+##### Assign taxonomy
+```{r a10b, eval=evpar}
+taxtab_pl01 <- asgntax(asvtab_pl01,
+                  taxdat = txset,
+                  revcomp = T,
+                  mtthread = T)
+summary(rownames(taxtab_pl01)==rownames(asvtab_pl01))
+#save
+# write.csv(taxtab_pl01, file = "taxtab_USA.csv")
+```
+
+### Create and save expressionset object
+```{r a10c, eval=evpar}
+epl01 <- ExpressionSet(as.matrix(asvtab_pl01),
+                       phenoData = AnnotatedDataFrame(phedat),
+                       featureData = AnnotatedDataFrame(as.data.frame(taxtab_pl01)) )
+
+saveRDS(epl01, file = "USA_rawasvs.Rds")
+
+```
+
+### Multiple taxonomy levels for single dataset
+```{r a10d, eval=evpar}
+epl01 <- readRDS("./USA_rawasvs.Rds")
+
+# Taxonomy table consistency
+View(table(as.factor(epl01@featureData@data$Species)))
+summary(is.na(epl01@featureData@data$Species))
+{
+epl01@featureData@data$Species[ epl01@featureData@data$Species=="s__" ] <- NA
+epl01@featureData@data$Species[ epl01@featureData@data$Genus=="g__" ] <- NA
+epl01@featureData@data$Species[ epl01@featureData@data$Family=="f__" ] <- NA
+epl01@featureData@data$Species[ epl01@featureData@data$Order=="o__" ] <- NA
+epl01@featureData@data$Species[ epl01@featureData@data$Class=="c__" ] <- NA
+epl01@featureData@data$Species[ epl01@featureData@data$Phylum=="p__" ] <- NA
+}
+
+tab1 <- as.matrix(epl01@featureData@data)
+tab1[ is.na(tab1) ] <- "unclass" ; tab1 <- as.data.frame(tab1)
+
+pie(table(as.factor(tab1$Species)), cex=0.5, main="US data Ggenes, species")
+pie(table(as.factor(tab1$Genus)), cex=0.5, main="US data Ggenes, genus")
+pie(table(as.factor(tab1$Order)), cex=0.5, main="US data Ggenes, order")
+```
+
+```{r a10e, eval=evpar}
+# Merged taxonomy for species, Genus and custom level
+
+# For a quick overview, merge on all levels
+tab1 <- within(tab1, CAT1 <- paste(Kingdom,Phylum,Class,Order,Family,Genus,Species, sep="_"))
+View(tab1)
+tab1$CAT1 <- gsub('_unclass', '', tab1$CAT1)
+tab1$CAT1 <- gsub('s__$', '', tab1$CAT1)
+tab1$CAT1 <- gsub('_$', '', tab1$CAT1)
+summary(is.na(tab1$CAT1))
+
+# Custom level (Genera+Staph aureus distinction)
+tab1$CAT2 <- as.character(paste0(tab1$Genus,"_", tab1$Species))
+tab1[ tab1$Genus=="g__Staphylococcus", 9 ] <- "Staph_coag_negative"
+tab1[ tab1$Species=="s__aureus", 9 ] <- "Staphylococcus_aureus"
+tab1$ASV <- rownames(tab1)
+
+# save extended tax table
+write.csv(tab1, file = "./USA_taxtab_ext.csv")
+```
+
+```{r a10f, eval=evpar}
+# All levels
+tmp1 <- exprs(epl01)
+tmp1 <- aggregate(tmp1, by=list(tab1$CAT1), FUN=sum)
+rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
+
+atax_set <- ExpressionSet(as.matrix(tmp1),
+                       phenoData = AnnotatedDataFrame(pData(epl01)))
+
+# Species
+tmp1 <- exprs(epl01)
+tmp1 <- aggregate(tmp1, by=list(tab1$Species), FUN=sum)
+rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
+
+sp_set <- ExpressionSet(as.matrix(tmp1),
+                       phenoData = AnnotatedDataFrame(pData(epl01)))
+
+# Genus + S. aureus 
+tmp1 <- exprs(epl01)
+tmp1 <- aggregate(tmp1, by=list(tab1$CAT2), FUN=sum)
+rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
+
+ctax_set <- ExpressionSet(as.matrix(tmp1),
+                       phenoData = AnnotatedDataFrame(pData(epl01)))
+
+# save custom tax-aggregated expressionset
+saveRDS(ctax_set, file = "USA_ctax.Rds")
+```
+
+### Decontamination single dataset
+```{r a10g, eval=evpar}
+dc1 <- MicrobIEM_decontamination(as.data.frame(t1), 
+                                 SAMPLE = colnames(sp_set)[sp_set$env_biome=="ENVO:human-associated habitat"],
+                                 NEG1 = colnames(sp_set)[sp_set$Description=="Blank sample"],
+                                 NEG2 = colnames(sp_set)[sp_set$Description=="Control sample"],
+                                 ratio_NEG1_threshold = 0.1,
+                                 ratio_NEG2_threshold = 0.1,
+                                 span_NEG1_threshold = 0.1,
+                                 span_NEG2_threshold = 0.1)
+
+# save decontam table
+write.csv(dc1, file = "./US_decontam.csv")
+```
+
+```{r a10h, eval=evpar}
+# Convert to rel. ab.
+exprs(sp_set) <- apply(exprs(sp_set), 2, function(x) x/sum(x))
+summary(colSums(exprs(sp_set)))
+
+#######################################################################################################
+# STATS
+#######################################################################################################
+
+# Relabs per condition
+boxplot(colSums(exprs(ctax_set))~ctax_set$env_biome, col="lightblue", main="US- ann. reads per ntc/subject sample")
+
+
+
+```
+
+### Phyloseq-based plots, analyses
+```{r a10i, eval=evpar}
+
+q1 <- exprs(epl01); rownames(q1) <- paste("ASV", seq(1:length(rownames(epl01))))
+q2 <- fData(epl01); rownames(q2) <- paste("ASV", seq(1:length(rownames(epl01))))
+q2 <- as.matrix(q2)
+
+ph1 <- phyloseq(otu_table(q1, taxa_are_rows = T),
+                tax_table(as.matrix(q2)),
+                sample_data(pData(epl01)))
+
+pcoa_ph(ph1, "Alias")
+
+plot_richness(ph1, x="plate", measures = c("Chao1", "Shannon"))
+
+ph1 <- phyloseq(otu_table(q1, taxa_are_rows = T),
+                tax_table(as.matrix(q2)),
+                sam_data(pData(mpheset)))
+
+pcoa_ph(ph1, "CAT1")
+
+ph2 <- subset_samples(ph1, CAT1!="PAT_SAM_AD")
+
+
+```
+
+
+## ***VISUALIZATIONS***
+
+```{r misc_code, eval=evpar}
+
+library(pheatmap)
+library(stringr)
+library(ggplot2)
+library(ggrepel)
+library(gridExtra)
+
+# Most abundant taxa
+summary(rowSums(t1c))
+
+
+### F I L T E R S
+
+# Prevalence
+View(rowSums(t1c != 0))
+t1c_filt <- t1c[rowSums(t1c != 0)>2, ]
+
+# Relative abundance
+hist(rowMeans(t1c_filt), col="lightblue")
+hist(rowMeans(t1c_filt), col="lightblue", 
+     ylim = c(0,10), breaks = 15)
+View(rowMeans(t1c_filt))
+t1c_filt <- t1c_filt[ rowMeans(t1c_filt)>0.05, ]
+
+t1c <- t1c_filt
+
+### Prevalence vs. abundance plot
+
+prvab <- as.data.frame(rowMeans(t1c)); colnames(prvab)="Rel_abundance"
+prvab$Prevalence <- rowSums(t1c != 0)
+prvab$Name <- rownames(prvab)
+prvab$Name <- gsub("\\s*\\([^\\)]+\\)","",as.character(prvab$Name))
+prvab$Name <- make.unique(sapply(strsplit(as.character(prvab$Name), "_"), tail, 1))
+
+ggplot(prvab, aes(x=prvab$Prevalence, 
+                  y=prvab$Rel_abundance)) +
+  geom_point(col="blue", alpha=0.5, size=3) +
+  geom_text_repel(
+    data = subset(prvab, Rel_abundance > 2),
+    aes(Prevalence, Rel_abundance, label = Name),
+    size = 5, alpha=0.5,
+    box.padding = unit(0.5, "lines"),
+    point.padding = unit(0.5, "lines")
+  )
+
+
+### Heatmap annotation table, color samples by disease, etc.
+
+ancol <- as.data.frame(mpheset$CAT1)
+rownames(ancol) <- colnames(mpheset) ; colnames(ancol) <- "Sample_Cat"
+# Colors
+# ann_colors <- list(Samgroup = c(male= "darkgreen", female = "grey"))
+
+# Filter top microbes
+# View(rowSums(t1c))
+hmtab <- t1c[ rowMeans(t1c)>0.5, ]
+
+pheatmap(hmtab, 
+         main="Aggregated relative abundance",
+         annotation_col = ancol,
+         # annotation_colors = ann_colors,
+         labels_row = make.unique(sapply(strsplit(as.character(rownames(hmtab)), "_"), tail, 1)),
+         show_colnames = F,
+         # cutree_cols = 3,
+         fontsize_row=8)
+
+# Separate by category
+Heatmap()
+
+### Boxplots of top microbes
+
+boxtab <- t(t1c[ rowMeans(t1c)>1, ])
+boxcol <- as.data.frame(mpheset$CAT1)
+rownames(boxcol) <- colnames(mpheset) ; colnames(boxcol) <- "Samgroup"
+summary(rownames(boxtab)==rownames(boxcol))
+
+boxtab <- cbind(boxcol, boxtab)
+
+
+#1
+p1 <- ggplot(boxtab, aes(x=as.factor(boxtab$Samgroup),
+                   y=boxtab$Bacteria_Firmicutes_Bacilli_Bacillales_Staphylococcaceae_Staphylococcus_epidermidis)) +
+  geom_boxplot(width=0.3, fill="lightblue", alpha=0.5, outlier.alpha = 0) +
+  geom_jitter(width=0.1) +
+  theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8)) + ylim(0,100)
+#2
+p2 <- ggplot(boxtab, aes(x=as.factor(boxtab$Samgroup),
+                   y=boxtab$Bacteria_Firmicutes_Bacilli_Lactobacillales_Lactobacillaceae_Lactobacillus)) +
+  geom_boxplot(width=0.3, fill="lightblue", alpha=0.5, outlier.alpha = 0) +
+  geom_jitter(width=0.1) +
+  theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8))+ ylim(0,100)
+#3
+p3 <- ggplot(boxtab, aes(x=as.factor(boxtab$Samgroup),
+                   y=boxtab$Bacteria_Proteobacteria_Gammaproteobacteria_Pseudomonadales_Moraxellaceae_Acinetobacter_johnsonii)) +
+  geom_boxplot(width=0.3, fill="lightblue", alpha=0.5, outlier.alpha = 0) +
+  geom_jitter(width=0.1) +
+  theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8))+ ylim(0,100)
+#4
+p4 <- ggplot(boxtab, aes(x=as.factor(boxtab$Samgroup),
+                   y=boxtab$Bacteria_Proteobacteria_Gammaproteobacteria_Pseudomonadales_Moraxellaceae_Enhydrobacter)) +
+  geom_boxplot(width=0.3, fill="lightblue", alpha=0.5, outlier.alpha = 0) +
+  geom_jitter(width=0.1) +
+  theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8))+ ylim(0,100)
+
+grid.arrange(p1,p2,p3,p4)
+
+```
+
+

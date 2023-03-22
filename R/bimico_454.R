@@ -4,7 +4,8 @@
 #' @param readfiles (Required) Path to single-end 454 demultiplexed fastq files, extension currently has to be ".fastq"
 #' @param taxfile (Required) Path to taxonomy database
 #' @param pheno (Required) Phenotye table
-#' @param outdir (Required) Path to write quality-filtered fastq files to
+#' @param filt_out (Required) Path to write quality-filtered fastq files to.
+#' @param outdir (Required) Path to write ASV and tax table, optionally figures.
 #' @param trim_read_length (Optional) max. length at which to truncate reads. Default = 0 (no truncating)
 #' @param mtthread (Optional) Boolean, enables multithreading (not recommended in Rstudio). Default=F
 #' @keywords read processing dada2
@@ -29,9 +30,12 @@ taxtab <- asgntax(asvtab, taxfile, revcomp = T, mtthread = mtthread)
 phedat <- pheno
 
  rownames(phedat) <- gsub(".fastq", "", rownames(phedat))
- colnames(asvtab) <- gsub(".filt", "", colnames(asvtab))
+ # colnames(asvtab) <- gsub(".filt", "", colnames(asvtab))
 asvtab <- asvtab[ , order(colnames(asvtab))]
 phedat <- phedat[ order(rownames(phedat)), ]
+
+print("samples matching between phenotable and ASV table:    ") 
+print(summary(rownames(phedat) %in% colnames(asvtab)))
 
 saveRDS(asvtab, file = "asv_table.RDS")
 saveRDS(taxtab, file = "tax_table.RDS")

@@ -2,29 +2,37 @@
 % Please edit documentation in R/bimico_illPE.R
 \name{bimico_illPE}
 \alias{bimico_illPE}
-\title{single-step preprocessing of 454 reads in BiMiCo pipeline}
+\title{single-step preprocessing of paired-end Illumina reads in BiMiCo pipeline}
 \usage{
-bimico_illPE(fwd_reads, rev_reads, taxfile, pheno, filt_out, outdir,
-  trim_read_length = 0, mtthread = F)
+bimico_illPE(fwd_reads, rev_reads, rawext, taxfile, pheno, filt_out,
+  outdir, mergepairs = F, trim_read_length = 0, mtthread = F)
 }
 \arguments{
+\item{fwd_reads}{(Required) Path to READ1 paired-end demultiplexed fastq files}
+
+\item{rev_reads}{(Required) Path to READ1 paired-end demultiplexed fastq files}
+
+\item{rawext}{(Required) fastq file precise extension as string, e.g. ".fastq"}
+
 \item{taxfile}{(Required) Path to taxonomy database}
 
 \item{pheno}{(Required) Phenotye table}
 
-\item{outdir}{(Required) Path to write quality-filtered fastq files to}
+\item{filt_out}{(Required) Path to write quality-filtered fastq files to (subdirectories FWD and REV will be created)}
 
-\item{trim_read_length}{(Optional) max. length at which to truncate reads. Default = 0 (no truncating)}
+\item{outdir}{(Required) Path to write results to}
+
+\item{mergepairs}{(Optional) Boolean, to merge read pairs (recommended) or only concatenate (if there's no overlap between the majority of reads, it is recommended to inspect trimming). Default=F}
+
+\item{trim_read_length}{(Optional) max. length at which to truncate FWD and REV reads. Default = 0 (no truncating)}
 
 \item{mtthread}{(Optional) Boolean, enables multithreading (not recommended in Rstudio). Default=F}
-
-\item{readfiles}{(Required) Path to single-end 454 demultiplexed fastq files, extension currently has to be ".fastq"}
 }
 \description{
 Read processing function. Returns quality-filtered reads in output folder and Phyloseq object of ASVs, taxonomy and phenodata.
 }
 \examples{
-bimico_454()
+bimico_illPE()
 }
 \keyword{dada2}
 \keyword{processing}

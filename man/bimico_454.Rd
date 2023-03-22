@@ -14,7 +14,9 @@ bimico_454(readfiles, taxfile, pheno, filt_out, outdir,
 
 \item{pheno}{(Required) Phenotye table}
 
-\item{outdir}{(Required) Path to write quality-filtered fastq files to}
+\item{filt_out}{(Required) Path to write quality-filtered fastq files to.}
+
+\item{outdir}{(Required) Path to write ASV and tax table, optionally figures.}
 
 \item{trim_read_length}{(Optional) max. length at which to truncate reads. Default = 0 (no truncating)}
 

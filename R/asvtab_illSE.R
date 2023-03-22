@@ -1,25 +1,23 @@
-## TODO: define optional args
-#       reads file name not strictly "fastq"!
-#       make chimera removal optional
-
-#' Create ASV table from filtered PAIRED-END Illumina reads
+#' Create ASV table from filtered SINGLE-END Illumina reads
 #'
-#' Given a set of PE Illumina sequencing reads pre-filtered by the 'prep_illSE' function, internally generates read error models and outputs chimera-filtered ASV table. ASV table contains ASVs in rows and samples in columns.
-#' @param readfiles (Required) Path to SE Illumina quality-filtered fastq files
+#' Given a set of SE Illumina sequencing reads pre-filtered by the 'prep_illSE' function, internally generates read error models and outputs chimera-filtered ASV table. ASV table contains ASVs in rows and samples in columns.
+#' @param readfiles (Required) Path to SE Illumina quality-filtered fastq DIRECTORY (e.g. filt_fqs_dir in tutorial)
+#' @param n (Optional) The maximum number of reads to dereplicate at any one time. Controls peak memory requirement. Default=1e6
 #' @param mtthread (Optional) Boolean, enables multithreading (not recommended in Rstudio) Default=F
 #' @keywords read processing dada2
 #' @export
 #' @examples
-#' asvtab_illPE()
+#' asvtab_illSE()
 
 
-asvtab_illPE <- function(readfiles, mtthread){
+asvtab_illSE <- function(readfiles, n, mtthread){
   
   
   # store filtered fastq file names
   ffqs <- sort(
     list.files(
       readfiles,
+      pattern = "_filt.fastq.gz",
       full.names = TRUE
     )
   )
@@ -28,7 +26,7 @@ asvtab_illPE <- function(readfiles, mtthread){
   samps <- sapply(
     strsplit(
       basename(ffqs),
-      ".fastq"
+      "_filt.fastq.gz"
     ),
     `[`,
     1
@@ -39,7 +37,7 @@ asvtab_illPE <- function(readfiles, mtthread){
   # sequence classification step
   
   err_fqs <- dada2::learnErrors(ffqs,
-                                multithread=mtthread, nreads=100000, MAX_CONSIST = 8)
+                                multithread=mtthread, nreads=n, MAX_CONSIST = 8)
   
   #plotErrors(err_fqs, nominalQ=TRUE)
   

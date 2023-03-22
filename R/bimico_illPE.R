@@ -1,41 +1,61 @@
-#' single-step preprocessing of 454 reads in BiMiCo pipeline
+#' single-step preprocessing of paired-end Illumina reads in BiMiCo pipeline
 #'
 #' Read processing function. Returns quality-filtered reads in output folder and Phyloseq object of ASVs, taxonomy and phenodata.
 #' @import phyloseq
-#' @param readfiles (Required) Path to single-end 454 demultiplexed fastq files, extension currently has to be ".fastq"
+#' @param fwd_reads (Required) Path to READ1 paired-end demultiplexed fastq files
+#' @param rev_reads (Required) Path to READ1 paired-end demultiplexed fastq files
+#' @param rawext (Required) fastq file precise extension as string, e.g. ".fastq"
 #' @param taxfile (Required) Path to taxonomy database
 #' @param pheno (Required) Phenotye table
-#' @param outdir (Required) Path to write quality-filtered fastq files to
-#' @param trim_read_length (Optional) max. length at which to truncate reads. Default = 0 (no truncating)
+#' @param filt_out (Required) Path to write quality-filtered fastq files to (subdirectories FWD and REV will be created)
+#' @param outdir (Required) Path to write results to
+#' @param mergepairs (Optional) Boolean, to merge read pairs (recommended) or only concatenate (if there's no overlap between the majority of reads, it is recommended to inspect trimming). Default=F
+#' @param trim_read_length (Optional) max. length at which to truncate FWD and REV reads. Default = 0 (no truncating)
 #' @param mtthread (Optional) Boolean, enables multithreading (not recommended in Rstudio). Default=F
 #' @keywords read processing dada2
 #' @export
 #' @examples
-#' bimico_454()
+#' bimico_illPE()
 
 
-bimico_illPE <- function(fwd_reads, rev_reads, taxfile, pheno, filt_out, outdir,  trim_read_length=0, mtthread=F){
+bimico_illPE <- function(fwd_reads, rev_reads, rawext, 
+                         taxfile, pheno, filt_out, outdir, mergepairs=F,
+                         trim_read_length=0, mtthread=F){
 
-prep_454(rawfqs,
-         outdir,
-         mtthread = mtthread,
-         trim_read_length = trim_read_length)
+  dir.create(outdir)
+  
+  prep_illPE(fwd_reads=fwd_reads, 
+                         rev_reads=rev_reads, 
+                         rawext=rawext,
+                         filt_out=filt_out,
+                         mtthread=F, 
+                         trim_read_length_FWD=trim_read_length,
+                         trim_read_length_REV=trim_read_length,
+                         trim5end=0)
 
-asvtab <- asvtab_454(filt_out, mtthread=mtthread)
+  
+asvtab <- asvtab_illPE(fwd_reads = fwd_reads,
+                       rev_reads = rev_reads,
+                       filt_out = filt_out,
+                       rawext = rawext,
+                       mtthread=mtthread,
+                       mergepairs = mergepairs)
 
-asvtab <- asvtab[ nchar(rownames(asvtab))>=50, ]
+# asvtab <- asvtab[ nchar(rownames(asvtab))>=50, ]
 
 taxtab <- asgntax(asvtab, taxfile, revcomp = T, mtthread = mtthread)
 
 phedat <- pheno
 
- rownames(phedat) <- gsub(".fastq.gz", "", rownames(phedat))
- colnames(asvtab) <- gsub(".filt", "", colnames(asvtab))
+ colnames(asvtab) <- gsub("_df_R1.fastq.gz", "", colnames(asvtab))
 asvtab <- asvtab[ , order(colnames(asvtab))]
 phedat <- phedat[ order(rownames(phedat)), ]
 
-saveRDS(asvtab, file = "asv_table.RDS")
-saveRDS(taxtab, file = "tax_table.RDS")
+print("samples matching between phenotable and ASV table:    ") 
+print(summary(rownames(phedat) %in% colnames(asvtab)))
+
+saveRDS(asvtab, file = file.path(outdir,"asv_table.RDS"))
+saveRDS(taxtab, file = file.path(outdir,"tax_table.RDS"))
 
 # Store data in Phyloseq object
 phs <- create_phylo(asvtab, taxtab, phedat)
