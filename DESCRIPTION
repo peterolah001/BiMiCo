@@ -4,7 +4,7 @@ Title: Biomap Microbiome Core methods
 Version: 0.1.0
 Author: P Olah
 Maintainer: P Olah <sbdy@nowhere.gov>
-Description: Convenience wrappers for commony used 16S metagenomic data processing tasks, based on DADA2 and Phyloseq R packages. Given an input directory of raw fastq files fom 454 or Illumina (paired or single end) reads, provides platform-specific read preprocessing followed by ASV table generation and annotation using the Greengenes database. Stored in a Phyloseq object, results can be further analyzed using popular Phyloseq methods.
+Description: Convenience wrappers for commony used 16S metagenomic data processing tasks, based on DADA2 and Phyloseq R packages. Given an input directory of raw fastq files fom 454 or Illumina (paired or single end) reads, provides platform-specific read preprocessing followed by ASV table generation and annotation using the Greengenes database.
 License: ?
 Encoding: UTF-8
 LazyData: true

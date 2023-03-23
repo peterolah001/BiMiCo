@@ -5,6 +5,7 @@
 #' @param rev_reads (Required) Path to PE Illumina quality-filtered fastq files
 #' @param filt_out (Required) Path to filtered reads from previous step (TrimandFilter)
 #' @param rawext (Required) Raw extension, as in previous steps
+#' @param batch (Required) List indicating the sequencing batch (e.g., a column of phenodata with batch information)
 #' @param mtthread (Optional) Boolean, enables multithreading (not recommended in Rstudio) Default=F
 #' @param mergepairs (Optional) Boolean, to merge read pairs (recommended) or only concatenate (if there's no overlap between the majority of reads, it is recommended to inspect trimming). Default=F
 #' @keywords read processing dada2
@@ -12,24 +13,28 @@
 #' @examples
 #' asvtab_illPE()
 
+# TODO: make batch and output destinations optional
 
-asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext, 
+asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext, batch,
                          mtthread=F,
                          mergepairs=F){
   
+  asvnochims <- list()
   
-  # # store filtered fastq file names
-  # ffqs <- sort(
-  #   list.files(
-  #     readfiles,
-  #     full.names = TRUE
-  #   )
-  # )
+  for (i in levels(as.factor(batch))) {
+  
+  # store filtered fastq file names
+  ffqs <- sort(
+    list.files(
+      readfiles,
+      full.names = TRUE
+    )
+  )
   
   # extract sample names
   samps <- sapply(
     strsplit(
-      basename(fwd_reads),
+      basename(ffqs),
       rawext),
     `[`,
     1
@@ -94,8 +99,19 @@ asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext,
                                            multithread=mtthread,
                                            verbose=TRUE)
   
+  asvnochims[[i]] <-  as.data.frame(asvs.nochim) 
+  asvcols <- unlist(lapply(asvnochims, rownames))
   
-  return(t(asvs.nochim))
+  }
   
+  asv_table <-  Reduce(function (...) { merge(..., all = TRUE) },   # Full join
+                       asvnochims) 
+  rownames(asv_table) <- asvcols
+  asv_table[ is.na(asv_table) ] <- 0
+  
+  asv_table <- t(asv_table)
+
+return(asv_table)
+#return(t(asvs.nochim))
   
 }

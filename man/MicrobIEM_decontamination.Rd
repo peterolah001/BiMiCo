@@ -14,7 +14,7 @@ MicrobIEM_decontamination(feature_table, SAMPLE, NEG1 = character(0),
 
 \item{SAMPLE}{(Required) character vector, names of samples to be filtered}
 
-\item{NEG1}{(Optional) haracter vector, names of NEG1 controls, can by empty}
+\item{NEG1}{(Optional) character vector, names of NEG1 controls, can by empty}
 
 \item{NEG2}{(Optional) character vector of names of NEG2 controls, can be empty}
 
@@ -27,7 +27,11 @@ MicrobIEM_decontamination(feature_table, SAMPLE, NEG1 = character(0),
 \item{span_NEG2_threshold}{(Optional) Numeric, thresholds for filtering contaminants, default is to not use any filter (NA)}
 }
 \description{
-Microbiem decontamination by Luise Rauer, TUM Munich
+Numeric thresholds for filtering contaminants, default is to not use any filter (NA)
+ratio_NEG1_threshold = NA, # Sensible thresholds: > 0
+ratio_NEG2_threshold = NA, # Sensible thresholds: > 0
+span_NEG1_threshold = NA, # Sensible thresholds: between 0 and 1
+span_NEG2_threshold = NA # Sensible thresholds: between 0 and 1
 }
 \examples{
 MicrobIEM_decontamination()

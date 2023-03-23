@@ -2,6 +2,7 @@
 #'
 #' Given a set of SE Illumina sequencing reads pre-filtered by the 'prep_illSE' function, internally generates read error models and outputs chimera-filtered ASV table. ASV table contains ASVs in rows and samples in columns.
 #' @param readfiles (Required) Path to SE Illumina quality-filtered fastq DIRECTORY (e.g. filt_fqs_dir in tutorial)
+#' @param batch (Required) List indicating the sequencing batch (e.g., a column of phenodata with batch information)
 #' @param n (Optional) The maximum number of reads to dereplicate at any one time. Controls peak memory requirement. Default=1e6
 #' @param mtthread (Optional) Boolean, enables multithreading (not recommended in Rstudio) Default=F
 #' @keywords read processing dada2
@@ -9,18 +10,24 @@
 #' @examples
 #' asvtab_illSE()
 
+# TODO: make batch and output destinations optional
 
-asvtab_illSE <- function(readfiles, n, mtthread){
+asvtab_illSE <- function(readfiles, batch, n=1e6, mtthread=F){
   
+  asvnochims <- list()
+  
+  for (i in levels(as.factor(batch))) {
   
   # store filtered fastq file names
-  ffqs <- sort(
+  ffqs_1 <- sort(
     list.files(
       readfiles,
       pattern = "_filt.fastq.gz",
       full.names = TRUE
     )
   )
+  
+  ffqs <- ffqs_1[ batch==i ]
   
   # extract sample names
   samps <- sapply(
@@ -65,9 +72,20 @@ asvtab_illSE <- function(readfiles, n, mtthread){
                                            method="consensus",
                                            multithread=FALSE,
                                            verbose=TRUE)
+  asvnochims[[i]] <-  as.data.frame(asvs.nochim) 
+  asvcols <- unlist(lapply(asvnochims, rownames))
   
+  }
   
-  return(t(asvs.nochim))
+  asv_table <-  Reduce(function (...) { merge(..., all = TRUE) },   # Full join
+                                      asvnochims) 
+  rownames(asv_table) <- asvcols
+  asv_table[ is.na(asv_table) ] <- 0
+  
+  asv_table <- t(asv_table)
+  
+  return(asv_table)
+  #return(t(asvs.nochim))
   
   
 }
