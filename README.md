@@ -1,0 +1,211 @@
+<br>
+
+The BiMiCo (Biomap Microbiome Core-tools) package offers single-step
+preprocessing of 16S microbial marker gene sequencing raw data files for
+454 and Illumina platforms. Using as input fastq files, sample metadata
+and a taxonomy database of choice, it outputs: a) ASV table b)
+synchronized metadata c) taxonomy table; or alternatively, a phyloseq
+object containing all three. The current tutorial and example data is
+aimed at the simple preprocessing of single-end Illumina reads, from
+swab samples of a healthy cohort from the Dorrenstein 3D Metabolic Map
+study (SRA:PRJEB5758).
+
+<br>
+
+#### Load required packages
+
+    library(BiMiCo)
+    library(Biobase)
+
+<br> <br>
+
+#### Input files
+
+The workflow requires three types of input (in the same directory for
+the below example): 1) fastq files for analysis 2) Sample metadata table
+in .csv format (samples in rows, variables in columns) 3) Taxonomy
+database to use with DADA2, e.g., SILVA, RDP, GTDB etc...
+
+Working directory (add trailing separator / or , depending on OS):
+
+    wdir <- "/Your/working/dir/"
+
+Folder containing fastq files:
+
+    fqdir <- "Demofiles_23_03/"
+    rawfqs <- paste0(wdir, fqdir)
+
+Metadata .csv table, **ROWNAMES** should contain the file basename
+without read 1/2 or file extension (see example):
+
+    mfile <- "SraRunTable.txt"
+    phedat <- read.csv(paste0(wdir,fqdir,mfile))
+    # Match actual filenames with phenodata rownames
+    rownames(phedat) <- phedat$Run
+    phedat <- phedat[ order(rownames(phedat)), ]
+    phedat$fastq <- paste0(rownames(phedat),".fastq")
+
+directory to write quality-filtered fastq files to:
+
+    fdir <- "dada_filtfqs"
+    filt_fqs_dir <- paste0(wdir,fdir)
+
+directory to write various outputs (ASV table, figures & graphs) to:
+
+    rdir <- "tutorial_results"
+    results_dir <- paste0(wdir,rdir)
+
+File format: please specify *pattern=* if other than ".fastq"
+
+    fastqs <- sort(list.files(rawfqs, pattern=".fastq"))
+
+Check if files can be located correctly
+
+    file.exists(paste0(rawfqs,fastqs))
+
+After checks, specify input files
+
+    infqs <- paste0(rawfqs,fastqs)
+
+Please explicitly specify **PRIMER TYPE** (amplified region) of your
+study as a character string column of phenodata (e.g. "V3-V4" region for
+the demo data):
+
+    phedat$primer_type <- "V4"
+
+Sync phenodata and input fastq files
+
+    phedat <- phedat[ phedat$fastq %in% fastqs, ]
+    summary(fastqs==phedat$fastq)
+
+For tutorial purposes, we create a random sequencing batch variable as a
+column of phenodata
+
+    phedat$batch <- c(rep("b1",2),rep("b2",2),rep("b3",3))
+
+taxonomy database to use with DADA2 (Greengenes v.13.8 used in the
+tutorial for speed, but not recommended otherwise, since it is
+outdated):
+
+    txset <- paste0(wdir,"gg_13_8_train_set_97.fa.gz")
+
+<br> <br>
+
+##### Preprocess fastqs per batch with dada2
+
+    # Filter all samples in one go
+    prep_illSE(infqs, 
+               outdir = filt_fqs_dir,
+               file_suffix = "_filt.fastq",
+               mtthread = T)
+
+    # DADA2, error modeling per batch
+    asvtab_pl01 <- asvtab_illSE(filt_fqs_dir, batch = phedat$batch)
+
+    ## Match names btw metadata and asv table, can be use case-specific
+    colnames(asvtab_pl01) <- gsub('.fastq','',colnames(asvtab_pl01))
+    summary(colnames(asvtab_pl01)==rownames(phedat))
+
+    #save
+    write.csv(asvtab_pl01, file = "asvtab_tutorial.csv")
+    write.csv(phedat, file = "phedat_tutorial.csv")
+
+Assign taxonomy
+
+    taxtab_pl01 <- asgntax(asvtab_pl01,
+                      taxdat = txset,
+                      revcomp = T,
+                      mtthread = T)
+    # Check if names match
+    summary(rownames(taxtab_pl01)==rownames(asvtab_pl01))
+
+    #save
+    write.csv(taxtab_pl01, file = "taxtab_tutorial.csv")
+
+Create and save expressionset object
+
+    epl01 <- ExpressionSet(as.matrix(asvtab_pl01),
+                           phenoData = AnnotatedDataFrame(phedat),
+                           featureData = AnnotatedDataFrame(as.data.frame(taxtab_pl01)) )
+
+    saveRDS(epl01, file = "rawasvs_tutorial.Rds")
+
+### Multiple taxonomical levels for single dataset
+
+    # Taxonomy table consistency
+    View(table(as.factor(epl01@featureData@data$Species)))
+    summary(is.na(epl01@featureData@data$Species))
+    {
+    epl01@featureData@data$Species[ epl01@featureData@data$Species=="s__" ] <- NA
+    epl01@featureData@data$Species[ epl01@featureData@data$Genus=="g__" ] <- NA
+    epl01@featureData@data$Species[ epl01@featureData@data$Family=="f__" ] <- NA
+    epl01@featureData@data$Species[ epl01@featureData@data$Order=="o__" ] <- NA
+    epl01@featureData@data$Species[ epl01@featureData@data$Class=="c__" ] <- NA
+    epl01@featureData@data$Species[ epl01@featureData@data$Phylum=="p__" ] <- NA
+    }
+
+    tab1 <- as.matrix(epl01@featureData@data)
+    tab1[ is.na(tab1) ] <- "unclass" ; tab1 <- as.data.frame(tab1)
+
+    pie(table(as.factor(tab1$Species)), cex=0.5, main="US data Ggenes, species")
+    pie(table(as.factor(tab1$Genus)), cex=0.5, main="US data Ggenes, genus")
+    pie(table(as.factor(tab1$Order)), cex=0.5, main="US data Ggenes, order")
+
+    # Merged taxonomy for species, Genus and custom level
+
+    # For a quick overview, merge on all levels
+    tab1 <- within(tab1, CAT1 <- paste(Kingdom,Phylum,Class,Order,Family,Genus,Species, sep="_"))
+    tab1$CAT1 <- gsub('_unclass', '', tab1$CAT1)
+    tab1$CAT1 <- gsub('s__$', '', tab1$CAT1)
+    tab1$CAT1 <- gsub('_$', '', tab1$CAT1)
+    summary(is.na(tab1$CAT1))
+
+    # Custom level (Genera+Staph aureus distinction)
+    tab1$CAT2 <- as.character(paste0(tab1$Genus,"_", tab1$Species))
+    tab1[ tab1$Genus=="g__Staphylococcus", 9 ] <- "Staph_coag_negative"
+    tab1[ tab1$Species=="s__aureus", 9 ] <- "Staphylococcus_aureus"
+    tab1$ASV <- rownames(tab1)
+
+    # save extended tax table
+    write.csv(tab1, file = "./taxtab_ext_tutorial.csv")
+
+    # All levels
+    tmp1 <- exprs(epl01)
+    tmp1 <- aggregate(tmp1, by=list(tab1$CAT1), FUN=sum)
+    rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
+
+    alltax_set <- ExpressionSet(as.matrix(tmp1),
+                           phenoData = AnnotatedDataFrame(pData(epl01)))
+
+    # Species
+    tmp1 <- exprs(epl01)
+    tmp1 <- aggregate(tmp1, by=list(tab1$Species), FUN=sum)
+    rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
+
+    sp_set <- ExpressionSet(as.matrix(tmp1),
+                           phenoData = AnnotatedDataFrame(pData(epl01)))
+
+    # Genus + S. aureus 
+    tmp1 <- exprs(epl01)
+    tmp1 <- aggregate(tmp1, by=list(tab1$CAT2), FUN=sum)
+    rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
+
+    ctax_set <- ExpressionSet(as.matrix(tmp1),
+                           phenoData = AnnotatedDataFrame(pData(epl01)))
+
+    # save custom tax-aggregated expressionset
+    saveRDS(ctax_set, file = "special_tax_tutorial.Rds")
+
+### Decontamination single dataset, variables highly specific to use case
+
+    dc1 <- MicrobIEM_decontamination(as.data.frame(t1), 
+                                     SAMPLE = colnames(sp_set)[sp_set$env_biome=="ENVO:human-associated habitat"],
+                                     NEG1 = colnames(sp_set)[sp_set$Description=="Blank sample"],
+                                     NEG2 = colnames(sp_set)[sp_set$Description=="Control sample"],
+                                     ratio_NEG1_threshold = 0.1,
+                                     ratio_NEG2_threshold = 0.1,
+                                     span_NEG1_threshold = 0.1,
+                                     span_NEG2_threshold = 0.1)
+
+    # save decontam table
+    write.csv(dc1, file = "./Tutorial_decontam.csv")
