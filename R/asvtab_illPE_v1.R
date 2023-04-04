@@ -26,7 +26,7 @@ asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext, batch,
   # store filtered fastq file names
   ffqs <- sort(
     list.files(
-      readfiles,
+      readfiles, #This needs to be changed I think to fwd_reads and rev_reads
       full.names = TRUE
     )
   )
