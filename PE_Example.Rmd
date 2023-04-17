@@ -1,5 +1,5 @@
 ---
-title: "Healthy skin samples Bimico demo analysis"
+title: "Illumina PE demo analysis"
 author: " "
 output: html_document
 ---
@@ -36,24 +36,24 @@ wdir <- "/Your/working/dir/"
 ```
 Folder containing fastq files:
 ```{r a4, eval=evpar}
-fqdir <- "Demofiles_23_03/"
+fqdir <- "Zen_Mouse_PE/"
 rawfqs <- paste0(wdir, fqdir)
 ```
 Metadata .csv table, **ROWNAMES** should contain the file basename without read 1/2 or file extension (see example):
 ```{r a5, eval=evpar}
-mfile <- "SraRunTable.txt"
+mfile <- "mouse.dpw.csv"
 phedat <- read.csv(paste0(wdir,fqdir,mfile))
 # Match actual filenames with phenodata rownames
-rownames(phedat) <- phedat$Run
+rownames(phedat) <- phedat$Filename
 phedat <- phedat[ order(rownames(phedat)), ]
-phedat$fastq <- paste0(rownames(phedat),".fastq")
+ phedat$fastq <- phedat$Filename
 ```
 directory to write quality-filtered fastq files to:
 ```{r a8, eval=evpar}
 fdir <- "dada_filtfqs"
 filt_fqs_dir <- paste0(wdir,fdir)
 ```
-directory to write various outputs (ASV table, figures & graphs) to:
+directory to write various outputs (figures & graphs) to:
 ```{r a9, eval=evpar}
 rdir <- "tutorial_results"
 results_dir <- paste0(wdir,rdir)
@@ -61,14 +61,20 @@ results_dir <- paste0(wdir,rdir)
 File format: please specify *pattern=* if other than ".fastq"
 ```{r a4b, eval=evpar}
 fastqs <- sort(list.files(rawfqs, pattern=".fastq"))
+fwd_fqs <- sort(list.files(rawfqs, pattern="_R1.fastq"))
+rev_fqs <- sort(list.files(rawfqs, pattern="_R2.fastq"))
 ```
 Check if files can be located correctly
 ```{r a4c, eval=evpar}
 file.exists(paste0(rawfqs,fastqs))
+file.exists(paste0(rawfqs,fwd_fqs))
+file.exists(paste0(rawfqs,rev_fqs))
 ```
 After checks, specify input files
 ```{r a5c, eval=evpar}
 infqs <- paste0(rawfqs,fastqs)
+in_fwd <- paste0(rawfqs,fwd_fqs)
+in_rev <- paste0(rawfqs,rev_fqs)
 ```
 Please explicitly specify **PRIMER TYPE** (amplified region) of your study as a character string column of phenodata (e.g. "V3-V4" region for the demo data):
 ```{r a6, eval=evpar}
@@ -76,12 +82,17 @@ phedat$primer_type <- "V4"
 ```
 Sync phenodata and input fastq files
 ```{r a6a, eval=evpar}
-phedat <- phedat[ phedat$fastq %in% fastqs, ]
+ phedat <- phedat[ phedat$fastq %in% fastqs, ]
 summary(fastqs==phedat$fastq)
 ```
 For tutorial purposes, we create a random sequencing batch variable as a column of phenodata
 ```{r a6b, eval=evpar}
-phedat$batch <- c(rep("b1",2),rep("b2",2),rep("b3",3))
+phedat$batch <- c(rep("b1",4),rep("b2",4),rep("b3",4))
+```
+Subset phenodata table to represent single samples instead of PE reads
+```{r a6b2, eval=evpar}
+phedat_filt <- phedat[phedat$read=="_R1.fastq", ]
+rownames(phedat_filt) <- phedat_filt$Sample
 ```
 taxonomy database to use with DADA2 (Greengenes v.13.8 used in the tutorial for speed, but not recommended otherwise, since it is outdated):
 ```{r a7, eval=evpar}
@@ -95,17 +106,19 @@ txset <- paste0(wdir,"gg_13_8_train_set_97.fa.gz")
 ```{r a10a, eval=evpar}
 
 # Filter all samples in one go
-prep_illSE(infqs, 
-           outdir = filt_fqs_dir,
-           file_suffix = "_filt.fastq",
+prep_illPE(fwd_reads = in_fwd,
+           rev_reads = in_rev,
+           rawext = "_R1.fastq",
+           filt_out = filt_fqs_dir,
            mtthread = T)
 
 # DADA2, error modeling per batch
-asvtab_pl01 <- asvtab_illSE(filt_fqs_dir, batch = phedat$batch)
+asvtab_pl01 <- asvtab_illPE_v2(filt_out = filt_fqs_dir, 
+                            batch = phedat_filt$batch)
 
 ## Match names btw metadata and asv table, can be use case-specific
-colnames(asvtab_pl01) <- gsub('.fastq','',colnames(asvtab_pl01))
-summary(colnames(asvtab_pl01)==rownames(phedat))
+colnames(asvtab_pl01) <- gsub('_df_R1.fastq.gz','',colnames(asvtab_pl01))
+summary(colnames(asvtab_pl01)==rownames(phedat_filt))
 
 #save
 write.csv(asvtab_pl01, file = "asvtab_tutorial.csv")
@@ -124,86 +137,12 @@ summary(rownames(taxtab_pl01)==rownames(asvtab_pl01))
 write.csv(taxtab_pl01, file = "taxtab_tutorial.csv")
 ```
 
-Create and save expressionset object
+Create and save as Phyloseq object
 ```{r a10c, eval=evpar}
-epl01 <- ExpressionSet(as.matrix(asvtab_pl01),
-                       phenoData = AnnotatedDataFrame(phedat),
-                       featureData = AnnotatedDataFrame(as.data.frame(taxtab_pl01)) )
+epl01 <- create_phylo(asvtab_pl01, taxtab_pl01, phedat_filt)
 
-saveRDS(epl01, file = "rawasvs_tutorial.Rds")
+saveRDS(epl01, file = "rawasvs_tutorial_PE.Rds")
 
-```
-
-### Multiple taxonomical levels for single dataset
-```{r a10d, eval=evpar}
-
-# Taxonomy table consistency
-View(table(as.factor(epl01@featureData@data$Species)))
-summary(is.na(epl01@featureData@data$Species))
-{
-epl01@featureData@data$Species[ epl01@featureData@data$Species=="s__" ] <- NA
-epl01@featureData@data$Species[ epl01@featureData@data$Genus=="g__" ] <- NA
-epl01@featureData@data$Species[ epl01@featureData@data$Family=="f__" ] <- NA
-epl01@featureData@data$Species[ epl01@featureData@data$Order=="o__" ] <- NA
-epl01@featureData@data$Species[ epl01@featureData@data$Class=="c__" ] <- NA
-epl01@featureData@data$Species[ epl01@featureData@data$Phylum=="p__" ] <- NA
-}
-
-tab1 <- as.matrix(epl01@featureData@data)
-tab1[ is.na(tab1) ] <- "unclass" ; tab1 <- as.data.frame(tab1)
-
-pie(table(as.factor(tab1$Species)), cex=0.5, main="US data Ggenes, species")
-pie(table(as.factor(tab1$Genus)), cex=0.5, main="US data Ggenes, genus")
-pie(table(as.factor(tab1$Order)), cex=0.5, main="US data Ggenes, order")
-```
-
-```{r a10e, eval=evpar}
-# Merged taxonomy for species, Genus and custom level
-
-# For a quick overview, merge on all levels
-tab1 <- within(tab1, CAT1 <- paste(Kingdom,Phylum,Class,Order,Family,Genus,Species, sep="_"))
-tab1$CAT1 <- gsub('_unclass', '', tab1$CAT1)
-tab1$CAT1 <- gsub('s__$', '', tab1$CAT1)
-tab1$CAT1 <- gsub('_$', '', tab1$CAT1)
-summary(is.na(tab1$CAT1))
-
-# Custom level (Genera+Staph aureus distinction)
-tab1$CAT2 <- as.character(paste0(tab1$Genus,"_", tab1$Species))
-tab1[ tab1$Genus=="g__Staphylococcus", 9 ] <- "Staph_coag_negative"
-tab1[ tab1$Species=="s__aureus", 9 ] <- "Staphylococcus_aureus"
-tab1$ASV <- rownames(tab1)
-
-# save extended tax table
-write.csv(tab1, file = "./taxtab_ext_tutorial.csv")
-```
-
-```{r a10f, eval=evpar}
-# All levels
-tmp1 <- exprs(epl01)
-tmp1 <- aggregate(tmp1, by=list(tab1$CAT1), FUN=sum)
-rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
-
-alltax_set <- ExpressionSet(as.matrix(tmp1),
-                       phenoData = AnnotatedDataFrame(pData(epl01)))
-
-# Species
-tmp1 <- exprs(epl01)
-tmp1 <- aggregate(tmp1, by=list(tab1$Species), FUN=sum)
-rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
-
-sp_set <- ExpressionSet(as.matrix(tmp1),
-                       phenoData = AnnotatedDataFrame(pData(epl01)))
-
-# Genus + S. aureus 
-tmp1 <- exprs(epl01)
-tmp1 <- aggregate(tmp1, by=list(tab1$CAT2), FUN=sum)
-rownames(tmp1) <- tmp1$Group.1 ; tmp1$Group.1 <- NULL
-
-ctax_set <- ExpressionSet(as.matrix(tmp1),
-                       phenoData = AnnotatedDataFrame(pData(epl01)))
-
-# save custom tax-aggregated expressionset
-saveRDS(ctax_set, file = "special_tax_tutorial.Rds")
 ```
 
 ### Decontamination single dataset, variables highly specific to use case

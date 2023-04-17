@@ -1,10 +1,7 @@
 #' Create ASV table from filtered PAIRED-END Illumina reads
 #'
 #' Given a set of PE Illumina sequencing reads pre-filtered by the 'prep_illSE' function, internally generates read error models and outputs chimera-filtered ASV table. ASV table contains ASVs in rows and samples in columns.
-#' @param fwd_reads (Required) Path to PE Illumina quality-filtered fastq files
-#' @param rev_reads (Required) Path to PE Illumina quality-filtered fastq files
-#' @param filt_out (Required) Path to filtered reads from previous step (TrimandFilter)
-#' @param rawext (Required) Raw extension, as in previous steps
+#' @param filt_out (Required) Path to filtered reads from previous step (dir containing "DADA2_filt_FWD" and DADA2_filt_REV" dirs)
 #' @param batch (Required) List indicating the sequencing batch (e.g., a column of phenodata with batch information)
 #' @param mtthread (Optional) Boolean, enables multithreading (not recommended in Rstudio) Default=F
 #' @param mergepairs (Optional) Boolean, to merge read pairs (recommended) or only concatenate (if there's no overlap between the majority of reads, it is recommended to inspect trimming). Default=F
@@ -15,7 +12,7 @@
 
 # TODO: make batch and output destinations optional
 
-asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext, batch,
+asvtab_illPE <- function(filt_out, batch,
                          mtthread=F,
                          mergepairs=F){
   
@@ -23,35 +20,17 @@ asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext, batch,
   
   for (i in levels(as.factor(batch))) {
   
-  # store filtered fastq file names
-  ffqs <- sort(
-    list.files(
-      readfiles,
-      full.names = TRUE
-    )
-  )
+  # Get fwd and rev filtered fqs
+    fwd_filt_fqs <- sort(list.files(filt_out,pattern="_df_R1.fastq.gz", recursive = T, full.names = T))
+    rev_filt_fqs <- sort(list.files(filt_out,pattern="_df_R2.fastq.gz", recursive = T, full.names = T))
   
-  # extract sample names
-  samps <- sapply(
-    strsplit(
-      basename(ffqs),
-      rawext),
-    `[`,
-    1
-  )
+  # get files of current batch
+    fwd_filt_fqs <- cbind(as.data.frame(fwd_filt_fqs),batch)
+    fwd_filt_fqs <- as.character(fwd_filt_fqs[ fwd_filt_fqs$batch==i, 1])
   
-  # create dir for filtered, trimmed fastq files
-  fwd_filt_fqs <- file.path(
-    filt_out, "DADA2_filt_FWD",
-    paste0(samps, "_df_R1.fastq.gz")
-  )
-  
-  rev_filt_fqs <- file.path(
-    filt_out, "DADA2_filt_REV",
-    paste0(samps, "_df_R2.fastq.gz")
-  )
-  
-  
+    rev_filt_fqs <- cbind(as.data.frame(rev_filt_fqs),batch)
+    rev_filt_fqs <- as.character(rev_filt_fqs[ rev_filt_fqs$batch==i, 1])
+    
   # learn error rates: visualization of base calling error model generated for
   # sequence classification step
   
@@ -106,7 +85,7 @@ asvtab_illPE <- function(fwd_reads, rev_reads, filt_out, rawext, batch,
   
   asv_table <-  Reduce(function (...) { merge(..., all = TRUE) },   # Full join
                        asvnochims) 
-  rownames(asv_table) <- asvcols
+   rownames(asv_table) <- asvcols
   asv_table[ is.na(asv_table) ] <- 0
   
   asv_table <- t(asv_table)

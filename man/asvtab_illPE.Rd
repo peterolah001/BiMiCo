@@ -4,17 +4,10 @@
 \alias{asvtab_illPE}
 \title{Create ASV table from filtered PAIRED-END Illumina reads}
 \usage{
-asvtab_illPE(fwd_reads, rev_reads, filt_out, rawext, batch, mtthread = F,
-  mergepairs = F)
+asvtab_illPE(filt_out, batch, mtthread = F, mergepairs = F)
 }
 \arguments{
-\item{fwd_reads}{(Required) Path to PE Illumina quality-filtered fastq files}
-
-\item{rev_reads}{(Required) Path to PE Illumina quality-filtered fastq files}
-
-\item{filt_out}{(Required) Path to filtered reads from previous step (TrimandFilter)}
-
-\item{rawext}{(Required) Raw extension, as in previous steps}
+\item{filt_out}{(Required) Path to filtered reads from previous step (dir containing "DADA2_filt_FWD" and DADA2_filt_REV" dirs)}
 
 \item{batch}{(Required) List indicating the sequencing batch (e.g., a column of phenodata with batch information)}
 
